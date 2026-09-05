@@ -26,7 +26,7 @@ const skillOptions = COC7E_SKILLS.filter((skill) => !skill.creation_locked && ![
 const initial = {
   step: 0, mode: "manual", profile: { name: "", age: 25, pronouns: "", gender: "", birthplace: "", residence: "" },
   occupationId: "", characteristics: Object.fromEntries([...coreNames, "Luck"].map((name) => [name, ""])),
-  luckDice: ["", "", ""], rollDetails: {}, occupationSelections: [], assignmentValues: [], personalSkills: ["", "", "", ""],
+  luckDice: ["", "", ""], rollDetails: {}, rollCounts: {}, quickRollCount: 0, occupationSelections: [], assignmentValues: [], personalSkills: ["", "", "", ""],
   backstory: { story: "", personal_description: "", ideology_beliefs: "", significant_people: "", meaningful_locations: "", treasured_possessions: "", traits: "", injuries_scars: "", phobias: "", manias: "" },
   result: null
 };
@@ -94,11 +94,11 @@ function slotSummary(slot) {
 function renderAbilities() {
   content.innerHTML = `<h2>能力值</h2><p class="lead">可以逐項擲出能力值，也可以讓系統一次擲完九項。</p>
     <div class="segmented" role="group" aria-label="能力值產生方式"><button type="button" data-mode="manual" class="${state.mode === "manual" ? "active" : ""}">逐項擲骰</button><button type="button" data-mode="system" class="${state.mode === "system" ? "active" : ""}">快速擲骰</button></div>
-    ${state.mode === "system" ? `<button id="roll-all" class="primary-button roll-all-button" type="button">${Object.keys(state.rollDetails ?? {}).length ? "全部重擲" : "一鍵擲骰"}</button>` : ""}
+    ${state.mode === "system" ? `<button id="roll-all" class="primary-button roll-all-button" type="button" ${state.quickRollCount >= 5 ? "disabled" : ""}>${state.quickRollCount ? `全部重擲（${state.quickRollCount}/5）` : "一鍵擲骰（0/5）"}</button>` : ""}
     <div class="ability-grid">${coreNames.map((name, index) => abilityField(name, index)).join("")}${luckField()}</div>`;
   content.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
     state.mode = button.dataset.mode;
-    state.characteristics = Object.fromEntries([...coreNames, "Luck"].map((name) => [name, ""])); state.rollDetails = {}; state.luckDice = ["", "", ""];
+    state.characteristics = Object.fromEntries([...coreNames, "Luck"].map((name) => [name, ""])); state.rollDetails = {}; state.rollCounts = {}; state.quickRollCount = 0; state.luckDice = ["", "", ""];
     saveDraft(); render();
   }));
   document.querySelector("#roll-all")?.addEventListener("click", rollAllCharacteristics);
@@ -106,6 +106,7 @@ function renderAbilities() {
 }
 function rollDice(count) { return Array.from({ length: count }, () => Math.floor(Math.random() * 6) + 1); }
 function rollAllCharacteristics() {
+  if (state.quickRollCount >= 5) return;
   const details = {};
   for (const name of coreNames) {
     const dice = rollDice(["SIZ", "INT", "EDU"].includes(name) ? 2 : 3);
@@ -117,13 +118,17 @@ function rollAllCharacteristics() {
   state.characteristics.Luck = state.luckDice.reduce((sum, die) => sum + die, 0) * 5;
   details.Luck = { dice: [...state.luckDice], bonus: 0 };
   state.rollDetails = details;
+  state.quickRollCount += 1;
   saveDraft(); render();
 }
 function rollOneCharacteristic(name) {
+  const count = Number(state.rollCounts?.[name] ?? 0);
+  if (count >= 5) return;
   const twoDicePlusSix = ["SIZ", "INT", "EDU"].includes(name);
   const dice = rollDice(twoDicePlusSix ? 2 : 3);
   const bonus = twoDicePlusSix ? 6 : 0;
   state.rollDetails = { ...(state.rollDetails ?? {}), [name]: { dice, bonus } };
+  state.rollCounts = { ...(state.rollCounts ?? {}), [name]: count + 1 };
   state.characteristics[name] = (dice.reduce((sum, die) => sum + die, 0) + bonus) * 5;
   if (name === "Luck") state.luckDice = [...dice];
   saveDraft(); render();
@@ -135,11 +140,13 @@ function rollText(name) {
 }
 function abilityField(name, index) {
   if (state.mode === "system") return `<div class="ability-card"><label>${characteristicLabels[name]}<small>${rollText(name)}</small></label><strong class="rolled-value">${state.characteristics[name] || "—"}</strong></div>`;
-  return `<div class="ability-card"><label>${characteristicLabels[name]}<small>${rollText(name)}</small></label><div class="roll-row"><strong class="rolled-value">${state.characteristics[name] || "—"}</strong><button class="die-button" data-roll-one="${name}" type="button" aria-label="擲${characteristicLabels[name]}">${state.characteristics[name] ? "↻" : "⚄"}</button></div></div>`;
+  const count = Number(state.rollCounts?.[name] ?? 0);
+  return `<div class="ability-card"><label>${characteristicLabels[name]}<small>${rollText(name)}</small></label><div class="roll-row"><strong class="rolled-value">${state.characteristics[name] || "—"}</strong><span class="roll-count">${count}/5</span><button class="die-button" data-roll-one="${name}" type="button" aria-label="擲${characteristicLabels[name]}，已擲${count}次" ${count >= 5 ? "disabled" : ""}>${state.characteristics[name] ? "↻" : "⚄"}</button></div></div>`;
 }
 function luckField() {
   if (state.mode === "system") return `<div class="ability-card"><label>幸運 <small>${rollText("Luck")}</small></label><strong class="rolled-value">${state.characteristics.Luck || "—"}</strong></div>`;
-  return `<div class="ability-card"><label>幸運 <small>${rollText("Luck")}</small></label><div class="roll-row"><strong class="rolled-value">${state.characteristics.Luck || "—"}</strong><button class="die-button" data-roll-one="Luck" type="button" aria-label="擲幸運">${state.characteristics.Luck ? "↻" : "⚄"}</button></div></div>`;
+  const count = Number(state.rollCounts?.Luck ?? 0);
+  return `<div class="ability-card"><label>幸運 <small>${rollText("Luck")}</small></label><div class="roll-row"><strong class="rolled-value">${state.characteristics.Luck || "—"}</strong><span class="roll-count">${count}/5</span><button class="die-button" data-roll-one="Luck" type="button" aria-label="擲幸運，已擲${count}次" ${count >= 5 ? "disabled" : ""}>${state.characteristics.Luck ? "↻" : "⚄"}</button></div></div>`;
 }
 
 function occupationRows() {
