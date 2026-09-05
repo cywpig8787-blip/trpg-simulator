@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#12110f">
+  <meta name="description" content="CoC 7e 調查員創角器 V2">
+  <title>TRPG Simulator｜CoC 7e 創角器 V2</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">TRPG Simulator</div>
+    <div class="version">CoC 7e Investigator Builder <strong>V2</strong></div>
+    <button id="reset" class="ghost" type="button">重新開始</button>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <p class="eyebrow">調查員檔案</p>
+      <h1 id="draft-title">未命名調查員</h1>
+      <ol id="steps" class="steps"></ol>
+      <div class="rule-card">
+        <span>目前規則</span>
+        <strong>Call of Cthulhu 7e</strong>
+        <small>創角技能上限 90</small>
+      </div>
+    </aside>
+
+    <section class="main-panel">
+      <div id="alert" class="alert" hidden></div>
+      <div id="content"></div>
+      <footer class="actions">
+        <button id="back" class="secondary" type="button">上一步</button>
+        <span id="save-state">自動儲存</span>
+        <button id="next" class="primary" type="button">下一步</button>
+      </footer>
+    </section>
+
+    <aside class="summary">
+      <h2>即時摘要</h2>
+      <div id="live-summary"></div>
+    </aside>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
