@@ -5,6 +5,7 @@ import { deriveInvestigatorStats, successLevels } from "./derived.js";
 import { COC7E_SAMPLE_OCCUPATIONS, validateOccupationSkillSelection } from "./occupations.js";
 import { materializeSkill } from "./skills.js";
 import { allocateQuickstartSkills } from "./quickstart-allocation.js";
+import { allocatePointBuySkills, occupationPointPool } from "./point-buy.js";
 
 export class Coc7eCreationSession {
   constructor(id) {
@@ -58,6 +59,17 @@ export class Coc7eCreationSession {
     const baseSkills = allIds.map((id) => materializeSkill(id, this.characteristicResult.characteristics));
     this.skills = allocateQuickstartSkills(baseSkills, occupationSkillIds, assignments, personalSkillIds)
       .map((skill) => ({ ...skill, ...successLevels(skill.final) }));
+    return this;
+  }
+
+  allocateSkillsByPoints(occupationSkillIds, occupationSpends, personalSpends) {
+    if (!this.occupation || !this.characteristicResult) throw new Error("Occupation and characteristics are required");
+    validateOccupationSkillSelection(this.occupation, occupationSkillIds);
+    const characteristics = this.characteristicResult.characteristics;
+    const credit = Number(occupationSpends.credit_rating || 0);
+    const [minimum, maximum] = this.occupation.credit_range;
+    if (credit < minimum || credit > maximum) throw new Error("Credit Rating is outside the occupation range");
+    this.skills = allocatePointBuySkills(characteristics, occupationSkillIds, occupationSpends, personalSpends, occupationPointPool(this.occupation, characteristics), characteristics.INT * 2);
     return this;
   }
 

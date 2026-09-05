@@ -21,12 +21,11 @@ const skillLabels = Object.freeze({
   psychoanalysis: "精神分析", psychology: "心理學", ride: "騎術", science: "科學", sleight_of_hand: "妙手",
   spot_hidden: "偵查", stealth: "潛行", survival: "生存", swim: "游泳", throw: "投擲", track: "追蹤"
 });
-const occupationValues = [70, 60, 60, 50, 50, 50, 40, 40, 40];
 const skillOptions = COC7E_SKILLS.filter((skill) => !skill.creation_locked && !["credit_rating", "fighting", "firearms"].includes(skill.id));
 const initial = {
   step: 0, mode: "manual", profile: { name: "", age: 25, pronouns: "", gender: "", birthplace: "", residence: "" },
   occupationId: "", characteristics: Object.fromEntries([...coreNames, "Luck"].map((name) => [name, ""])),
-  luckDice: ["", "", ""], rollDetails: {}, rollCounts: {}, quickRollCount: 0, occupationSelections: [], assignmentValues: [], personalSkills: ["", "", "", ""],
+  luckDice: ["", "", ""], rollDetails: {}, rollCounts: {}, quickRollCount: 0, occupationSelections: [], occupationSpends: {}, personalSelections: ["", "", "", ""], personalSpends: {},
   backstory: { story: "", personal_description: "", ideology_beliefs: "", significant_people: "", meaningful_locations: "", treasured_possessions: "", traits: "", injuries_scars: "", phobias: "", manias: "" },
   result: null
 };
@@ -46,13 +45,38 @@ function saveDraft() {
   document.querySelector("#save-status").textContent = "草稿已儲存在此裝置";
 }
 function esc(value = "") { return String(value).replace(/[&<>'"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[c])); }
-function showError(error) { message.textContent = error.message ?? String(error); message.hidden = false; window.scrollTo({ top: 0, behavior: "smooth" }); }
+function showError(error) {
+  const raw = error.message ?? String(error);
+  const translations = [
+    ["Occupation point pool must be fully allocated", "職業技能點必須全部分配完"],
+    ["Personal point pool must be fully allocated", "個人興趣點必須全部分配完"],
+    ["Credit Rating is outside the occupation range", "信用評級不符合所選職業的範圍"],
+    ["Choose exactly eight distinct occupation skill entries", "請選滿八項且不得重複的職業技能"],
+    ["requires a specialization", "需要填寫專精項目"],
+    ["exceeds the creation cap", "超過創角上限 90"]
+  ];
+  message.textContent = translations.find(([key]) => raw.includes(key))?.[1] ?? raw;
+  message.hidden = false; window.scrollTo({ top: 0, behavior: "smooth" });
+}
 function clearError() { message.hidden = true; message.textContent = ""; }
 function selectedOccupation() { return COC7E_SAMPLE_OCCUPATIONS.find((item) => item.id === state.occupationId); }
 function skillLabel(id) { return skillLabels[id] ?? id; }
 function occupationLabel(id) { return occupationLabels[id] ?? id; }
 function optionsHtml(selected = "", allowed = skillOptions) {
   return `<option value="">請選擇</option>${allowed.map((skill) => `<option value="${skill.id}" ${skill.id === selected ? "selected" : ""}>${esc(skillLabel(skill.id))}</option>`).join("")}`;
+}
+function skillBase(id) {
+  const skill = COC7E_SKILLS.find((item) => item.id === id.split(":", 1)[0]);
+  if (skill?.base_formula === "floor(DEX/2)") return Math.floor(Number(state.characteristics.DEX) / 2);
+  if (skill?.base_formula === "EDU") return Number(state.characteristics.EDU);
+  return Number(skill?.base ?? 0);
+}
+function occupationPool() {
+  const occ = selectedOccupation(); if (!occ) return 0;
+  const { EDU, APP, STR, DEX } = Object.fromEntries(coreNames.map((name) => [name, Number(state.characteristics[name])]));
+  if (occ.point_formula === "EDU4") return EDU * 4;
+  if (occ.point_formula === "EDU2_APP2") return EDU * 2 + APP * 2;
+  return EDU * 2 + Math.max(STR, DEX) * 2;
 }
 
 function renderProgress() {
@@ -82,7 +106,7 @@ function renderOccupation() {
     `<button class="choice-card ${occ.id === state.occupationId ? "selected" : ""}" type="button" data-id="${occ.id}"><strong>${esc(occupationLabel(occ.id))}</strong><span>${occ.slots.map(slotSummary).join(" · ")}</span></button>`
   ).join("")}</div>`;
   content.querySelectorAll(".choice-card").forEach((button) => button.addEventListener("click", () => {
-    state.occupationId = button.dataset.id; state.occupationSelections = []; state.assignmentValues = []; saveDraft(); render();
+    state.occupationId = button.dataset.id; state.occupationSelections = []; state.occupationSpends = {}; state.personalSelections = ["", "", "", ""]; state.personalSpends = {}; saveDraft(); render();
   }));
 }
 function slotSummary(slot) {
@@ -161,21 +185,35 @@ function occupationRows() {
       const fixedId = slot.type === "fixed" ? slot.skill_id : current.id;
       const selected = fixedId || current.id;
       const def = COC7E_SKILLS.find((skill) => skill.id === selected);
-      rows.push(`<tr><td>${index + 1}</td><td><select data-occ-skill="${index}" ${slot.type === "fixed" ? "disabled" : ""}>${optionsHtml(selected, allowed)}</select></td><td>${def?.specialized ? `<input data-specialization="${index}" value="${esc(current.specialization)}" placeholder="填寫專精" aria-label="${esc(skillLabel(def.id))}專精">` : "—"}</td><td><select data-assignment="${index}">${occupationValues.map((value) => `<option value="${value}" ${Number(state.assignmentValues[index] ?? occupationValues[index]) === value ? "selected" : ""}>${value}</option>`).join("")}</select></td></tr>`);
+      const fullId = def?.specialized && current.specialization.trim() ? `${selected}:${current.specialization.trim()}` : selected;
+      const base = skillBase(selected);
+      const spend = Number(state.occupationSpends?.[fullId] ?? 0);
+      rows.push(`<tr><td>${index + 1}</td><td><select data-occ-skill="${index}" ${slot.type === "fixed" ? "disabled" : ""}>${optionsHtml(selected, allowed.filter((skill) => skill.id === selected || !state.occupationSelections.some((choice,j) => j !== index && choice?.id === skill.id)))}</select></td><td>${def?.specialized ? `<input data-specialization="${index}" value="${esc(current.specialization)}" placeholder="填寫專精" aria-label="${esc(skillLabel(def.id))}專精">` : "—"}</td><td>${base}</td><td><input data-occ-spend="${index}" type="number" min="0" max="${90-base}" value="${spend}" inputmode="numeric" ${def?.specialized&&!current.specialization.trim()?"disabled":""}></td><td>${base + spend}</td></tr>`);
       if (slot.type === "fixed" && current.id !== fixedId) state.occupationSelections[index] = { id: fixedId, specialization: current.specialization };
     }
   }
   return rows.join("");
 }
 function renderSkills() {
-  content.innerHTML = `<h2>技能配置</h2><p class="lead">選滿八項職業技能並分配九組數值；信用評級也占一組。個人興趣則選四項非職業技能，各增加 20。</p>
-    <div class="stack"><h3>職業技能｜${esc(occupationLabel(state.occupationId))}</h3><table class="skill-table"><thead><tr><th>項次</th><th>技能</th><th>專精</th><th>最終值</th></tr></thead><tbody>${occupationRows()}<tr><td>9</td><td>信用評級</td><td>—</td><td><select data-credit>${occupationValues.map((value)=>`<option value="${value}" ${Number(state.assignmentValues[8] ?? occupationValues[8])===value?"selected":""}>${value}</option>`).join("")}</select></td></tr></tbody></table></div>
-    <div class="section-divider"><h3>個人興趣技能</h3><div class="field-grid">${state.personalSkills.map((id,i)=>`<div class="field"><label>興趣技能 ${i+1}</label><select data-personal="${i}">${optionsHtml(id)}</select></div>`).join("")}</div></div>`;
-  content.querySelectorAll("[data-occ-skill]").forEach((select) => select.addEventListener("change", () => { const i=Number(select.dataset.occSkill); state.occupationSelections[i]={id:select.value,specialization:""}; saveDraft(); render(); }));
-  content.querySelectorAll("[data-specialization]").forEach((input) => input.addEventListener("input", () => { const i=Number(input.dataset.specialization); state.occupationSelections[i].specialization=input.value; saveDraft(); }));
-  content.querySelectorAll("[data-assignment]").forEach((select) => select.addEventListener("change", () => { state.assignmentValues[Number(select.dataset.assignment)]=Number(select.value); saveDraft(); }));
-  content.querySelector("[data-credit]").addEventListener("change", (e) => { state.assignmentValues[8]=Number(e.target.value); saveDraft(); });
-  content.querySelectorAll("[data-personal]").forEach((select)=>select.addEventListener("change",()=>{state.personalSkills[Number(select.dataset.personal)]=select.value;saveDraft();}));
+  state.occupationSpends ??= {}; state.personalSelections ??= ["", "", "", ""]; state.personalSpends ??= {};
+  const occPool = occupationPool(); const occUsed = Object.values(state.occupationSpends).reduce((sum,v)=>sum+Number(v||0),0);
+  const personalPool = Number(state.characteristics.INT) * 2; const personalUsed = Object.values(state.personalSpends).reduce((sum,v)=>sum+Number(v||0),0);
+  const creditBase=0, creditSpend=Number(state.occupationSpends.credit_rating??0);
+  content.innerHTML = `<h2>技能配置</h2><p class="lead">先選職業技能，再分配職業點數；個人興趣使用另一個點數池。每項技能最高 90。</p>
+    <div class="pool-banner"><strong>職業技能點</strong><span>剩餘 ${occPool-occUsed}／${occPool}</span></div>
+    <div class="stack"><h3>職業技能｜${esc(occupationLabel(state.occupationId))}</h3><table class="skill-table"><thead><tr><th>項次</th><th>技能</th><th>專精</th><th>基礎</th><th>投入</th><th>最終</th></tr></thead><tbody>${occupationRows()}<tr><td>9</td><td>信用評級</td><td>—</td><td>0</td><td><input data-credit type="number" min="${selectedOccupation()?.credit_range?.[0]??0}" max="${selectedOccupation()?.credit_range?.[1]??90}" value="${creditSpend}" inputmode="numeric"></td><td>${creditBase+creditSpend}</td></tr></tbody></table><small>信用評級範圍：${selectedOccupation()?.credit_range?.[0]}–${selectedOccupation()?.credit_range?.[1]}</small></div>
+    <div class="section-divider"><div class="pool-banner"><strong>個人興趣點（智力 × 2）</strong><span>剩餘 ${personalPool-personalUsed}／${personalPool}</span></div><div class="field-grid">${state.personalSelections.map((id,i)=>personalRow(id,i)).join("")}</div><button id="add-personal" class="secondary-button" type="button">增加興趣技能</button></div>`;
+  content.querySelectorAll("[data-occ-skill]").forEach((select) => select.addEventListener("change", () => { const i=Number(select.dataset.occSkill); const old=state.occupationSelections[i]; if(old?.id)Object.keys(state.occupationSpends).filter(k=>k===old.id||k.startsWith(`${old.id}:`)).forEach(k=>delete state.occupationSpends[k]); state.occupationSelections[i]={id:select.value,specialization:""}; saveDraft(); renderSkills(); }));
+  content.querySelectorAll("[data-specialization]").forEach((input) => input.addEventListener("change", () => { const i=Number(input.dataset.specialization); const old=state.occupationSelections[i]; Object.keys(state.occupationSpends).filter(k=>k===old.id||k.startsWith(`${old.id}:`)).forEach(k=>delete state.occupationSpends[k]); state.occupationSelections[i].specialization=input.value; saveDraft(); renderSkills(); }));
+  content.querySelectorAll("[data-occ-spend]").forEach((input)=>input.addEventListener("input",()=>{const i=Number(input.dataset.occSpend);const c=state.occupationSelections[i];if(!c?.id)return;const id=COC7E_SKILLS.find(s=>s.id===c.id)?.specialized?`${c.id}:${c.specialization.trim()}`:c.id;state.occupationSpends[id]=Number(input.value);saveDraft();renderSkills();}));
+  content.querySelector("[data-credit]").addEventListener("input",(e)=>{state.occupationSpends.credit_rating=Number(e.target.value);saveDraft();renderSkills();});
+  content.querySelectorAll("[data-personal]").forEach((select)=>select.addEventListener("change",()=>{const i=Number(select.dataset.personal);const old=state.personalSelections[i];if(old)delete state.personalSpends[old];state.personalSelections[i]=select.value;saveDraft();renderSkills();}));
+  content.querySelectorAll("[data-personal-spend]").forEach((input)=>input.addEventListener("input",()=>{const id=state.personalSelections[Number(input.dataset.personalSpend)];if(id)state.personalSpends[id]=Number(input.value);saveDraft();renderSkills();}));
+  document.querySelector("#add-personal").addEventListener("click",()=>{if(state.personalSelections.length<10){state.personalSelections.push("");saveDraft();renderSkills();}});
+}
+function personalRow(id,i){
+  const blocked=new Set([...state.occupationSelections.map(x=>x?.id),...state.personalSelections.filter((_,j)=>j!==i)]);const allowed=skillOptions.filter(skill=>!skill.specialized&&(skill.id===id||!blocked.has(skill.id)));const base=id?skillBase(id):0;const spend=Number(state.personalSpends?.[id]??0);
+  return `<div class="personal-row"><label>興趣技能 ${i+1}</label><select data-personal="${i}">${optionsHtml(id,allowed)}</select><span>基礎 ${base}</span><input data-personal-spend="${i}" type="number" min="0" max="${90-base}" value="${spend}" ${id?"":"disabled"} inputmode="numeric" aria-label="投入興趣點"><strong>最終 ${base+spend}</strong></div>`;
 }
 
 function renderBackstory() {
@@ -199,9 +237,7 @@ function selectedSkillIds() {
   });
 }
 function buildResult() {
-  const values = state.assignmentValues.length === 9 ? state.assignmentValues : occupationValues;
   const ids = selectedSkillIds();
-  const assignments = Object.fromEntries([...ids,"credit_rating"].map((id,i)=>[id,Number(values[i])]));
   const session = new Coc7eCreationSession(crypto.randomUUID()).setProfile(state.profile).chooseOccupation(state.occupationId);
   if (state.mode === "manual") session.useManualRoll(
     Object.fromEntries(Object.entries(state.characteristics).map(([k,v])=>[k,Number(v)])),
@@ -211,7 +247,7 @@ function buildResult() {
     Object.fromEntries([...coreNames, "Luck"].map((name)=>[name,Number(state.characteristics[name])])),
     Object.fromEntries(Object.entries(state.rollDetails).map(([name, detail]) => [name, detail.dice]))
   );
-  return session.allocateSkills(ids, assignments, state.personalSkills).setBackstory(normalizeBackstory()).finalize();
+  return session.allocateSkillsByPoints(ids, state.occupationSpends, state.personalSpends).setBackstory(normalizeBackstory()).finalize();
 }
 function validateCurrentStep() {
   if (state.step===0) { if (!state.profile.name.trim()) throw new Error("請填寫調查員姓名"); if (!Number.isInteger(Number(state.profile.age)) || Number(state.profile.age)<15) throw new Error("年齡至少為 15"); }

@@ -6,4 +6,5 @@ export { rollDice, rollLuck, calculateLuckFromDice, assignQuickstartCharacterist
 export { COC7E_SKILLS, resolveSkillBase, createBaseSkillList, baseSkillId, materializeSkill } from "./rulesets/coc7e/skills.js";
 export { COC7E_SAMPLE_OCCUPATIONS, validateOccupationSkillSelection } from "./rulesets/coc7e/occupations.js";
 export { allocateQuickstartSkills } from "./rulesets/coc7e/quickstart-allocation.js";
+export { allocatePointBuySkills, occupationPointPool } from "./rulesets/coc7e/point-buy.js";
 export { Coc7eCreationSession } from "./rulesets/coc7e/creation-session.js";

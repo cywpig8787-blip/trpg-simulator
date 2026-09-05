@@ -65,6 +65,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .ability-card small { color: var(--muted); }
 .rolled-value { display: block; font-size: 1.75rem; color: var(--accent-strong); }
 .roll-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.roll-count { margin-left: auto; color: var(--muted); font-size: .8rem; }
 .die-button { width: 44px; min-width: 44px; padding: 0; border: 1px solid var(--accent); border-radius: 6px; background: #15130f; color: var(--accent-strong); font-size: 1.35rem; cursor: pointer; }
 .die-button:hover { background: #2b2417; }
 .skill-table { width: 100%; border-collapse: collapse; }
@@ -72,6 +73,9 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .skill-table th, .skill-table td { padding: 9px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .skill-table select, .skill-table input { min-width: 90px; }
 .section-divider { margin: 30px 0 18px; padding-top: 24px; border-top: 1px solid var(--line); }
+.pool-banner { display:flex; justify-content:space-between; gap:16px; margin:16px 0; padding:14px; border:1px solid var(--accent); background:#1d1911; }
+.personal-row { display:grid; grid-template-columns:minmax(130px,1fr) 88px 100px; gap:8px; align-items:center; padding:12px; border:1px solid var(--line); }
+.personal-row label,.personal-row select { grid-column:1/-1; }
 .message { padding: 14px 16px; border: 1px solid var(--danger); color: #ffd6d0; background: #371d19; margin-bottom: 22px; }
 .sheet-panel h3 { margin: 0 0 18px; font-size: 1.15rem; }
 .sheet-block { padding: 14px 0; border-top: 1px solid var(--line); }

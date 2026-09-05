@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   allocateQuickstartSkills, assignQuickstartCharacteristics,
   COC7E_SAMPLE_OCCUPATIONS, createBaseSkillList, recordManualCharacteristics,
-  recordSystemCharacteristics
+  recordSystemCharacteristics, occupationPointPool, allocatePointBuySkills
 } from "../src/index.js";
 
 const assignment = { STR: 40, CON: 50, DEX: 50, INT: 50, SIZ: 60, POW: 60, APP: 70, EDU: 80 };
@@ -53,4 +53,15 @@ test("allocates current quickstart occupation and personal skill values", () => 
   const result = allocateQuickstartSkills(skills, occupationIds, assignments, ["accounting", "climb", "drive_auto", "listen"]);
   assert.equal(result.find((skill) => skill.id === "appraise").final, 70);
   assert.equal(result.find((skill) => skill.id === "accounting").final, 25);
+});
+
+test("calculates standard occupation and personal point pools", () => {
+  const journalist = COC7E_SAMPLE_OCCUPATIONS.find((item) => item.id === "journalist");
+  assert.equal(occupationPointPool(journalist, assignment), 320);
+  const occupationIds = ["appraise", "art_craft:Books", "history", "library_use", "language_other:French", "persuade", "spot_hidden", "psychology"];
+  const occupationSpends = Object.fromEntries([...occupationIds, "credit_rating"].map((id) => [id, 0]));
+  Object.assign(occupationSpends, { appraise: 85, history: 85, library_use: 70, persuade: 60, credit_rating: 20 });
+  const result = allocatePointBuySkills({ ...assignment, Luck: 60 }, occupationIds, occupationSpends, { climb: 70, accounting: 30 }, 320, 100);
+  assert.equal(result.find((skill) => skill.id === "appraise").final, 90);
+  assert.equal(result.find((skill) => skill.id === "climb").final, 90);
 });
