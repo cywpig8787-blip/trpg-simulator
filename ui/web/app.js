@@ -92,22 +92,17 @@ function slotSummary(slot) {
 }
 
 function renderAbilities() {
-  content.innerHTML = `<h2>能力值</h2><p class="lead">可以自己擲骰後輸入，也可以讓系統一次擲出九項能力值。</p>
-    <div class="segmented" role="group" aria-label="能力值產生方式"><button type="button" data-mode="manual" class="${state.mode === "manual" ? "active" : ""}">自己擲骰</button><button type="button" data-mode="system" class="${state.mode === "system" ? "active" : ""}">快速擲骰</button></div>
+  content.innerHTML = `<h2>能力值</h2><p class="lead">可以逐項擲出能力值，也可以讓系統一次擲完九項。</p>
+    <div class="segmented" role="group" aria-label="能力值產生方式"><button type="button" data-mode="manual" class="${state.mode === "manual" ? "active" : ""}">逐項擲骰</button><button type="button" data-mode="system" class="${state.mode === "system" ? "active" : ""}">快速擲骰</button></div>
     ${state.mode === "system" ? `<button id="roll-all" class="primary-button roll-all-button" type="button">${Object.keys(state.rollDetails ?? {}).length ? "全部重擲" : "一鍵擲骰"}</button>` : ""}
     <div class="ability-grid">${coreNames.map((name, index) => abilityField(name, index)).join("")}${luckField()}</div>`;
   content.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
     state.mode = button.dataset.mode;
-    if (state.mode === "system") { state.characteristics = Object.fromEntries([...coreNames, "Luck"].map((name) => [name, ""])); state.rollDetails = {}; state.luckDice = ["", "", ""]; }
-    saveDraft(); render();
-  }));
-  content.querySelectorAll("[data-characteristic]").forEach((input) => input.addEventListener("change", () => { state.characteristics[input.dataset.characteristic] = Number(input.value); saveDraft(); renderSheet(); }));
-  content.querySelectorAll("[data-luck-die]").forEach((input) => input.addEventListener("input", () => {
-    state.luckDice[Number(input.dataset.luckDie)] = input.value;
-    const dice = state.luckDice.map(Number); if (dice.every((die) => die >= 1 && die <= 6)) state.characteristics.Luck = dice.reduce((a,b) => a+b, 0) * 5;
+    state.characteristics = Object.fromEntries([...coreNames, "Luck"].map((name) => [name, ""])); state.rollDetails = {}; state.luckDice = ["", "", ""];
     saveDraft(); render();
   }));
   document.querySelector("#roll-all")?.addEventListener("click", rollAllCharacteristics);
+  content.querySelectorAll("[data-roll-one]").forEach((button) => button.addEventListener("click", () => rollOneCharacteristic(button.dataset.rollOne)));
 }
 function rollDice(count) { return Array.from({ length: count }, () => Math.floor(Math.random() * 6) + 1); }
 function rollAllCharacteristics() {
@@ -124,6 +119,15 @@ function rollAllCharacteristics() {
   state.rollDetails = details;
   saveDraft(); render();
 }
+function rollOneCharacteristic(name) {
+  const twoDicePlusSix = ["SIZ", "INT", "EDU"].includes(name);
+  const dice = rollDice(twoDicePlusSix ? 2 : 3);
+  const bonus = twoDicePlusSix ? 6 : 0;
+  state.rollDetails = { ...(state.rollDetails ?? {}), [name]: { dice, bonus } };
+  state.characteristics[name] = (dice.reduce((sum, die) => sum + die, 0) + bonus) * 5;
+  if (name === "Luck") state.luckDice = [...dice];
+  saveDraft(); render();
+}
 function rollText(name) {
   const detail = state.rollDetails?.[name];
   if (!detail) return "尚未擲骰";
@@ -131,11 +135,11 @@ function rollText(name) {
 }
 function abilityField(name, index) {
   if (state.mode === "system") return `<div class="ability-card"><label>${characteristicLabels[name]}<small>${rollText(name)}</small></label><strong class="rolled-value">${state.characteristics[name] || "—"}</strong></div>`;
-  return `<div class="ability-card"><label>${characteristicLabels[name]}<small>最終值</small></label><input data-characteristic="${name}" type="number" min="1" max="100" step="1" value="${esc(state.characteristics[name])}" inputmode="numeric"></div>`;
+  return `<div class="ability-card"><label>${characteristicLabels[name]}<small>${rollText(name)}</small></label><div class="roll-row"><strong class="rolled-value">${state.characteristics[name] || "—"}</strong><button class="die-button" data-roll-one="${name}" type="button" aria-label="擲${characteristicLabels[name]}">${state.characteristics[name] ? "↻" : "⚄"}</button></div></div>`;
 }
 function luckField() {
   if (state.mode === "system") return `<div class="ability-card"><label>幸運 <small>${rollText("Luck")}</small></label><strong class="rolled-value">${state.characteristics.Luck || "—"}</strong></div>`;
-  return `<div class="ability-card"><label>幸運 <small>輸入三顆六面骰</small></label><div class="stat-row">${state.luckDice.map((v,i)=>`<input aria-label="幸運骰子 ${i+1}" data-luck-die="${i}" type="number" min="1" max="6" value="${esc(v)}" inputmode="numeric">`).join("")}</div><strong>${state.characteristics.Luck || "—"}</strong></div>`;
+  return `<div class="ability-card"><label>幸運 <small>${rollText("Luck")}</small></label><div class="roll-row"><strong class="rolled-value">${state.characteristics.Luck || "—"}</strong><button class="die-button" data-roll-one="Luck" type="button" aria-label="擲幸運">${state.characteristics.Luck ? "↻" : "⚄"}</button></div></div>`;
 }
 
 function occupationRows() {
@@ -192,7 +196,10 @@ function buildResult() {
   const ids = selectedSkillIds();
   const assignments = Object.fromEntries([...ids,"credit_rating"].map((id,i)=>[id,Number(values[i])]));
   const session = new Coc7eCreationSession(crypto.randomUUID()).setProfile(state.profile).chooseOccupation(state.occupationId);
-  if (state.mode === "manual") session.useManualRoll(Object.fromEntries(Object.entries(state.characteristics).map(([k,v])=>[k,Number(v)])), { Luck: state.luckDice.map(Number) });
+  if (state.mode === "manual") session.useManualRoll(
+    Object.fromEntries(Object.entries(state.characteristics).map(([k,v])=>[k,Number(v)])),
+    Object.fromEntries(Object.entries(state.rollDetails).map(([name, detail]) => [name, detail.dice]))
+  );
   else session.useAutomaticRoll(
     Object.fromEntries([...coreNames, "Luck"].map((name)=>[name,Number(state.characteristics[name])])),
     Object.fromEntries(Object.entries(state.rollDetails).map(([name, detail]) => [name, detail.dice]))
@@ -204,7 +211,7 @@ function validateCurrentStep() {
   if (state.step===1 && !state.occupationId) throw new Error("請選擇一個職業");
   if (state.step===2) {
     if (coreNames.some((name)=>!Number.isInteger(Number(state.characteristics[name])))) throw new Error("請完成八項能力值");
-    if (state.mode==="manual" && state.luckDice.some((die)=>Number(die)<1||Number(die)>6)) throw new Error("請輸入三顆六面骰的骰面");
+    if (state.mode==="manual" && [...coreNames,"Luck"].some((name)=>!state.rollDetails?.[name])) throw new Error("請把每一項能力值都擲完");
     if (state.mode==="system") {
       if ([...coreNames,"Luck"].some((name)=>!Number.isInteger(Number(state.characteristics[name])))) throw new Error("請先按下一鍵擲骰");
     }
