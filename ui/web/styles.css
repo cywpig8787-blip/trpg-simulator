@@ -72,6 +72,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .skill-table th { color: var(--muted); text-align: left; font-size: .8rem; font-weight: 500; }
 .skill-table th, .skill-table td { padding: 9px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .skill-table select, .skill-table input { min-width: 90px; }
+.skill-table .needs-value { border-color: var(--danger); }
+.required-note { display:block; margin-top:4px; color:var(--danger); font-size:.72rem; white-space:nowrap; }
 .section-divider { margin: 30px 0 18px; padding-top: 24px; border-top: 1px solid var(--line); }
 .pool-banner { display:flex; justify-content:space-between; gap:16px; margin:16px 0; padding:14px; border:1px solid var(--accent); background:#1d1911; }
 .personal-row { display:grid; grid-template-columns:minmax(130px,1fr) 88px 100px; gap:8px; align-items:center; padding:12px; border:1px solid var(--line); }

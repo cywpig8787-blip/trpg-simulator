@@ -188,7 +188,7 @@ function occupationRows() {
       const fullId = def?.specialized && current.specialization.trim() ? `${selected}:${current.specialization.trim()}` : selected;
       const base = skillBase(selected);
       const spend = Number(state.occupationSpends?.[fullId] ?? 0);
-      rows.push(`<tr><td>${index + 1}</td><td><select data-occ-skill="${index}" ${slot.type === "fixed" ? "disabled" : ""}>${optionsHtml(selected, allowed.filter((skill) => skill.id === selected || !state.occupationSelections.some((choice,j) => j !== index && choice?.id === skill.id)))}</select></td><td>${def?.specialized ? `<input data-specialization="${index}" value="${esc(current.specialization)}" placeholder="填寫專精" aria-label="${esc(skillLabel(def.id))}專精">` : "—"}</td><td>${base}</td><td><input data-occ-spend="${index}" type="number" min="0" max="${90-base}" value="${spend}" inputmode="numeric" ${def?.specialized&&!current.specialization.trim()?"disabled":""}></td><td>${base + spend}</td></tr>`);
+      rows.push(`<tr><td>${index + 1}</td><td><select data-occ-skill="${index}" ${slot.type === "fixed" ? "disabled" : ""}>${optionsHtml(selected, allowed.filter((skill) => skill.id === selected || !state.occupationSelections.some((choice,j) => j !== index && choice?.id === skill.id)))}</select></td><td>${def?.specialized ? `<input class="${current.specialization.trim()?"":"needs-value"}" data-specialization="${index}" value="${esc(current.specialization)}" placeholder="必填，例如：生物學" aria-label="${esc(skillLabel(def.id))}專精"><small class="required-note">必填且不可重複</small>` : "—"}</td><td>${base}</td><td><input data-occ-spend="${index}" type="number" min="0" max="${90-base}" value="${spend}" inputmode="numeric" ${def?.specialized&&!current.specialization.trim()?"disabled":""}></td><td>${base + spend}</td></tr>`);
       if (slot.type === "fixed" && current.id !== fixedId) state.occupationSelections[index] = { id: fixedId, specialization: current.specialization };
     }
   }
@@ -236,7 +236,27 @@ function selectedSkillIds() {
     const def=COC7E_SKILLS.find((skill)=>skill.id===id); return def?.specialized ? `${id}:${specialization.trim()}` : id;
   });
 }
+function validateOccupationSelections() {
+  const choices = Array.from({ length: 8 }, (_, index) => state.occupationSelections[index]);
+  if (state.occupationSelections.length !== 8 || choices.some((choice) => !choice?.id)) {
+    throw new Error("請選滿八項職業技能");
+  }
+  for (let index = 0; index < choices.length; index++) {
+    const choice = choices[index];
+    const definition = COC7E_SKILLS.find((skill) => skill.id === choice.id);
+    if (definition?.specialized && !choice.specialization.trim()) {
+      throw new Error(`第 ${index + 1} 項「${skillLabel(choice.id)}」需要填寫專精`);
+    }
+  }
+  const ids = selectedSkillIds().map((id) => id.toLocaleLowerCase("zh-Hant"));
+  const duplicateIndex = ids.findIndex((id, index) => ids.indexOf(id) !== index);
+  if (duplicateIndex >= 0) {
+    const choice = state.occupationSelections[duplicateIndex];
+    throw new Error(`第 ${duplicateIndex + 1} 項「${skillLabel(choice.id)}」的專精與前面重複`);
+  }
+}
 function buildResult() {
+  validateOccupationSelections();
   const ids = selectedSkillIds();
   const session = new Coc7eCreationSession(crypto.randomUUID()).setProfile(state.profile).chooseOccupation(state.occupationId);
   if (state.mode === "manual") session.useManualRoll(
