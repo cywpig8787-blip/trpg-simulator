@@ -13,3 +13,30 @@ export const COC7E_SAMPLE_OCCUPATIONS = Object.freeze([
   { id: "private_investigator", name: "Private Investigator", slots: [skill("art_craft"), skill("disguise"), skill("law"), skill("library_use"), oneOf(interpersonal, "One interpersonal skill"), skill("psychology"), skill("spot_hidden"), any()] },
   { id: "professor", name: "Professor", slots: [skill("library_use"), skill("language_other"), skill("language_own"), skill("psychology"), any(4, "Four academic or personal specialties")] }
 ]);
+
+const baseId = (id) => id.split(":", 1)[0];
+
+export function validateOccupationSkillSelection(occupation, selectedSkillIds) {
+  if (!occupation?.slots) throw new Error("A known occupation is required");
+  if (selectedSkillIds.length !== 8 || new Set(selectedSkillIds).size !== 8) {
+    throw new Error("Choose exactly eight distinct occupation skill entries");
+  }
+  const remaining = [...selectedSkillIds];
+  const consume = (predicate, message) => {
+    const index = remaining.findIndex(predicate);
+    if (index < 0) throw new Error(message);
+    remaining.splice(index, 1);
+  };
+
+  for (const slot of occupation.slots.filter((item) => item.type === "fixed")) {
+    consume((id) => baseId(id) === slot.skill_id, `Missing required occupation skill: ${slot.skill_id}`);
+  }
+  for (const slot of occupation.slots.filter((item) => item.type === "one_of")) {
+    consume((id) => slot.options.includes(baseId(id)), `Missing occupation choice: ${slot.note}`);
+  }
+  const openCount = occupation.slots
+    .filter((item) => item.type === "any")
+    .reduce((sum, item) => sum + item.count, 0);
+  if (remaining.length !== openCount) throw new Error("Occupation skill choices do not match its open slots");
+  return true;
+}

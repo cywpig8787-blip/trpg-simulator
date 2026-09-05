@@ -41,3 +41,28 @@ export function createBaseSkillList(characteristics) {
     ...skill, base: resolveSkillBase(skill, characteristics), occupation: 0, personal: 0
   }));
 }
+
+export function baseSkillId(skillId) {
+  return skillId.split(":", 1)[0];
+}
+
+export function materializeSkill(skillId, characteristics) {
+  const definition = COC7E_SKILLS.find((skill) => skill.id === baseSkillId(skillId));
+  if (!definition) throw new Error(`Unknown skill: ${skillId}`);
+  const specialization = skillId.includes(":") ? skillId.slice(skillId.indexOf(":") + 1).trim() : "";
+  if (definition.specialized && !specialization) {
+    throw new Error(`${definition.name} requires a specialization`);
+  }
+  if (!definition.specialized && specialization) {
+    throw new Error(`${definition.name} does not accept a specialization`);
+  }
+  return {
+    ...definition,
+    id: skillId,
+    specialization,
+    name: specialization ? `${definition.name} (${specialization})` : definition.name,
+    base: resolveSkillBase(definition, characteristics),
+    occupation: 0,
+    personal: 0
+  };
+}
