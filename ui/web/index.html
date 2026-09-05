@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#15130f" />
+    <meta name="description" content="CoC 7e 調查員創角工具" />
+    <title>TRPG Simulator｜調查員創角</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">T</div>
+      <div>
+        <strong>TRPG Simulator</strong>
+        <span>CoC 7e 調查員創角</span>
+      </div>
+      <button id="reset-button" class="quiet-button" type="button">重新開始</button>
+    </header>
+    <main class="workspace">
+      <aside class="progress-panel" aria-label="創角進度">
+        <p class="eyebrow">調查員檔案</p>
+        <h1 id="draft-name">未命名調查員</h1>
+        <ol id="step-list" class="step-list"></ol>
+        <div class="ruleset-stamp">
+          <span>RULESET</span>
+          <strong>Call of Cthulhu 7e</strong>
+          <small>建立上限：技能 90</small>
+        </div>
+      </aside>
+      <section class="form-shell">
+        <div id="message" class="message" role="alert" hidden></div>
+        <form id="creation-form" novalidate>
+          <div id="step-content"></div>
+          <footer class="form-actions">
+            <button id="back-button" class="secondary-button" type="button">上一步</button>
+            <span id="save-status" aria-live="polite">草稿儲存在此裝置</span>
+            <button id="next-button" class="primary-button" type="button">下一步</button>
+          </footer>
+        </form>
+      </section>
+      <aside id="live-sheet" class="sheet-panel" aria-label="角色卡即時摘要"></aside>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
