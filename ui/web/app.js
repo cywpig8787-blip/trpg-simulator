@@ -5,6 +5,23 @@ import {
 
 const steps = ["基本資料", "選擇職業", "能力值", "技能配置", "背景故事", "完成確認"];
 const coreNames = ["STR", "CON", "DEX", "INT", "SIZ", "POW", "APP", "EDU"];
+const characteristicLabels = Object.freeze({ STR: "力量", CON: "體質", DEX: "敏捷", INT: "智力", SIZ: "體型", POW: "意志", APP: "外貌", EDU: "教育", Luck: "幸運" });
+const occupationLabels = Object.freeze({
+  antiquarian: "古物研究者", author: "作家", dilettante: "業餘愛好者", doctor_of_medicine: "醫師",
+  journalist: "記者", police_detective: "警探", private_investigator: "私家偵探", professor: "教授"
+});
+const skillLabels = Object.freeze({
+  accounting: "會計", anthropology: "人類學", appraise: "估價", archaeology: "考古學", art_craft: "藝術／工藝",
+  charm: "魅惑", climb: "攀爬", credit_rating: "信用評級", cthulhu_mythos: "克蘇魯神話", disguise: "喬裝",
+  dodge: "閃避", drive_auto: "汽車駕駛", electrical_repair: "電氣維修", fast_talk: "話術", fighting: "格鬥",
+  fighting_brawl: "格鬥（鬥毆）", firearms: "射擊", firearms_handgun: "射擊（手槍）",
+  firearms_rifle_shotgun: "射擊（步槍／霰彈槍）", first_aid: "急救", history: "歷史", intimidate: "恐嚇",
+  jump: "跳躍", language_other: "外語", language_own: "母語", law: "法律", library_use: "圖書館使用",
+  listen: "聆聽", locksmith: "鎖匠", mechanical_repair: "機械維修", medicine: "醫學", natural_world: "自然學",
+  navigate: "導航", occult: "神祕學", operate_heavy_machinery: "操作重型機械", persuade: "說服", pilot: "駕駛",
+  psychoanalysis: "精神分析", psychology: "心理學", ride: "騎術", science: "科學", sleight_of_hand: "妙手",
+  spot_hidden: "偵查", stealth: "潛行", survival: "生存", swim: "游泳", throw: "投擲", track: "追蹤"
+});
 const occupationValues = [70, 60, 60, 50, 50, 50, 40, 40, 40];
 const skillOptions = COC7E_SKILLS.filter((skill) => !skill.creation_locked && !["credit_rating", "fighting", "firearms"].includes(skill.id));
 const initial = {
@@ -33,9 +50,10 @@ function esc(value = "") { return String(value).replace(/[&<>'"]/g, (c) => ({ "&
 function showError(error) { message.textContent = error.message ?? String(error); message.hidden = false; window.scrollTo({ top: 0, behavior: "smooth" }); }
 function clearError() { message.hidden = true; message.textContent = ""; }
 function selectedOccupation() { return COC7E_SAMPLE_OCCUPATIONS.find((item) => item.id === state.occupationId); }
-function skillLabel(id) { return COC7E_SKILLS.find((skill) => skill.id === id)?.name ?? id; }
+function skillLabel(id) { return skillLabels[id] ?? id; }
+function occupationLabel(id) { return occupationLabels[id] ?? id; }
 function optionsHtml(selected = "", allowed = skillOptions) {
-  return `<option value="">請選擇</option>${allowed.map((skill) => `<option value="${skill.id}" ${skill.id === selected ? "selected" : ""}>${esc(skill.name)}</option>`).join("")}`;
+  return `<option value="">請選擇</option>${allowed.map((skill) => `<option value="${skill.id}" ${skill.id === selected ? "selected" : ""}>${esc(skillLabel(skill.id))}</option>`).join("")}`;
 }
 
 function renderProgress() {
@@ -62,7 +80,7 @@ function field(label, name, value, required = false, type = "text") {
 
 function renderOccupation() {
   content.innerHTML = `<h2>選擇職業</h2><p class="lead">職業決定調查員可選的職業技能；其餘人生經驗留給個人興趣技能。</p><div class="choice-grid">${COC7E_SAMPLE_OCCUPATIONS.map((occ) =>
-    `<button class="choice-card ${occ.id === state.occupationId ? "selected" : ""}" type="button" data-id="${occ.id}"><strong>${esc(occ.name)}</strong><span>${occ.slots.map(slotSummary).join(" · ")}</span></button>`
+    `<button class="choice-card ${occ.id === state.occupationId ? "selected" : ""}" type="button" data-id="${occ.id}"><strong>${esc(occupationLabel(occ.id))}</strong><span>${occ.slots.map(slotSummary).join(" · ")}</span></button>`
   ).join("")}</div>`;
   content.querySelectorAll(".choice-card").forEach((button) => button.addEventListener("click", () => {
     state.occupationId = button.dataset.id; state.occupationSelections = []; state.assignmentValues = []; saveDraft(); render();
@@ -70,7 +88,8 @@ function renderOccupation() {
 }
 function slotSummary(slot) {
   if (slot.type === "fixed") return skillLabel(slot.skill_id);
-  return slot.note;
+  if (slot.type === "one_of") return `任選一項：${slot.options.map(skillLabel).join("／")}`;
+  return slot.count === 1 ? "任選一項技能" : `任選 ${slot.count} 項技能`;
 }
 
 function renderAbilities() {
@@ -91,12 +110,12 @@ function renderAbilities() {
   document.querySelector("#roll-luck")?.addEventListener("click", () => { state.luckDice = Array.from({length:3}, () => Math.floor(Math.random()*6)+1); state.characteristics.Luck = state.luckDice.reduce((a,b)=>a+b,0)*5; saveDraft(); render(); });
 }
 function abilityField(name, index) {
-  if (state.mode === "system") return `<div class="ability-card"><label>${name}<small>配置</small></label><select data-characteristic="${name}">${QUICKSTART_CHARACTERISTIC_VALUES.map((v) => `<option value="${v}" ${Number(state.characteristics[name]) === v ? "selected" : ""}>${v}</option>`).join("")}</select></div>`;
-  return `<div class="ability-card"><label>${name}<small>最終值</small></label><input data-characteristic="${name}" type="number" min="1" max="100" step="1" value="${esc(state.characteristics[name])}" inputmode="numeric"></div>`;
+  if (state.mode === "system") return `<div class="ability-card"><label>${characteristicLabels[name]}<small>配置</small></label><select data-characteristic="${name}">${QUICKSTART_CHARACTERISTIC_VALUES.map((v) => `<option value="${v}" ${Number(state.characteristics[name]) === v ? "selected" : ""}>${v}</option>`).join("")}</select></div>`;
+  return `<div class="ability-card"><label>${characteristicLabels[name]}<small>最終值</small></label><input data-characteristic="${name}" type="number" min="1" max="100" step="1" value="${esc(state.characteristics[name])}" inputmode="numeric"></div>`;
 }
 function luckField() {
-  if (state.mode === "system") return `<div class="ability-card"><label>Luck <small>3d6 × 5</small></label><button id="roll-luck" class="secondary-button" type="button">${state.characteristics.Luck ? `重骰（${state.characteristics.Luck}）` : "擲 Luck"}</button></div>`;
-  return `<div class="ability-card"><label>Luck <small>輸入 3d6</small></label><div class="stat-row">${state.luckDice.map((v,i)=>`<input aria-label="Luck 骰子 ${i+1}" data-luck-die="${i}" type="number" min="1" max="6" value="${esc(v)}" inputmode="numeric">`).join("")}</div><strong>${state.characteristics.Luck || "—"}</strong></div>`;
+  if (state.mode === "system") return `<div class="ability-card"><label>幸運 <small>三顆六面骰總和 × 5</small></label><button id="roll-luck" class="secondary-button" type="button">${state.characteristics.Luck ? `重骰（${state.characteristics.Luck}）` : "擲幸運"}</button></div>`;
+  return `<div class="ability-card"><label>幸運 <small>輸入三顆六面骰</small></label><div class="stat-row">${state.luckDice.map((v,i)=>`<input aria-label="幸運骰子 ${i+1}" data-luck-die="${i}" type="number" min="1" max="6" value="${esc(v)}" inputmode="numeric">`).join("")}</div><strong>${state.characteristics.Luck || "—"}</strong></div>`;
 }
 
 function occupationRows() {
@@ -111,7 +130,7 @@ function occupationRows() {
       const fixedId = slot.type === "fixed" ? slot.skill_id : current.id;
       const selected = fixedId || current.id;
       const def = COC7E_SKILLS.find((skill) => skill.id === selected);
-      rows.push(`<tr><td>${index + 1}</td><td><select data-occ-skill="${index}" ${slot.type === "fixed" ? "disabled" : ""}>${optionsHtml(selected, allowed)}</select></td><td>${def?.specialized ? `<input data-specialization="${index}" value="${esc(current.specialization)}" placeholder="填寫專精" aria-label="${esc(def.name)}專精">` : "—"}</td><td><select data-assignment="${index}">${occupationValues.map((value) => `<option value="${value}" ${Number(state.assignmentValues[index] ?? occupationValues[index]) === value ? "selected" : ""}>${value}</option>`).join("")}</select></td></tr>`);
+      rows.push(`<tr><td>${index + 1}</td><td><select data-occ-skill="${index}" ${slot.type === "fixed" ? "disabled" : ""}>${optionsHtml(selected, allowed)}</select></td><td>${def?.specialized ? `<input data-specialization="${index}" value="${esc(current.specialization)}" placeholder="填寫專精" aria-label="${esc(skillLabel(def.id))}專精">` : "—"}</td><td><select data-assignment="${index}">${occupationValues.map((value) => `<option value="${value}" ${Number(state.assignmentValues[index] ?? occupationValues[index]) === value ? "selected" : ""}>${value}</option>`).join("")}</select></td></tr>`);
       if (slot.type === "fixed" && current.id !== fixedId) state.occupationSelections[index] = { id: fixedId, specialization: current.specialization };
     }
   }
@@ -119,7 +138,7 @@ function occupationRows() {
 }
 function renderSkills() {
   content.innerHTML = `<h2>技能配置</h2><p class="lead">選滿八項職業技能並分配九組數值；信用評級也占一組。個人興趣則選四項非職業技能，各增加 20。</p>
-    <div class="stack"><h3>職業技能｜${esc(selectedOccupation()?.name ?? "")}</h3><table class="skill-table"><thead><tr><th>#</th><th>技能</th><th>專精</th><th>最終值</th></tr></thead><tbody>${occupationRows()}<tr><td>9</td><td>Credit Rating</td><td>—</td><td><select data-credit>${occupationValues.map((value)=>`<option value="${value}" ${Number(state.assignmentValues[8] ?? occupationValues[8])===value?"selected":""}>${value}</option>`).join("")}</select></td></tr></tbody></table></div>
+    <div class="stack"><h3>職業技能｜${esc(occupationLabel(state.occupationId))}</h3><table class="skill-table"><thead><tr><th>項次</th><th>技能</th><th>專精</th><th>最終值</th></tr></thead><tbody>${occupationRows()}<tr><td>9</td><td>信用評級</td><td>—</td><td><select data-credit>${occupationValues.map((value)=>`<option value="${value}" ${Number(state.assignmentValues[8] ?? occupationValues[8])===value?"selected":""}>${value}</option>`).join("")}</select></td></tr></tbody></table></div>
     <div class="section-divider"><h3>個人興趣技能</h3><div class="field-grid">${state.personalSkills.map((id,i)=>`<div class="field"><label>興趣技能 ${i+1}</label><select data-personal="${i}">${optionsHtml(id)}</select></div>`).join("")}</div></div>`;
   content.querySelectorAll("[data-occ-skill]").forEach((select) => select.addEventListener("change", () => { const i=Number(select.dataset.occSkill); state.occupationSelections[i]={id:select.value,specialization:""}; saveDraft(); render(); }));
   content.querySelectorAll("[data-specialization]").forEach((input) => input.addEventListener("input", () => { const i=Number(input.dataset.specialization); state.occupationSelections[i].specialization=input.value; saveDraft(); }));
@@ -130,12 +149,12 @@ function renderSkills() {
 
 function renderBackstory() {
   const fields = [["story","完整角色故事"],["personal_description","外貌描述"],["ideology_beliefs","思想／信仰"],["significant_people","重要之人"],["meaningful_locations","重要地點"],["treasured_possessions","珍視之物"],["traits","個人特質"],["injuries_scars","傷勢／傷疤"],["phobias","恐懼症"],["manias","狂躁症"]];
-  content.innerHTML = `<h2>背景故事</h2><p class="lead">故事與結構化欄位會同時保存，供 GM、NPC 和劇本事件引用。多筆內容請以換行分隔。</p><div class="field-grid">${fields.map(([id,label],i)=>`<div class="field ${i===0?"full":""}"><label for="${id}">${label}</label><textarea id="${id}" data-backstory="${id}">${esc(state.backstory[id])}</textarea></div>`).join("")}</div>`;
+  content.innerHTML = `<h2>背景故事</h2><p class="lead">故事與結構化欄位會同時保存，供遊戲主持人、非玩家角色和劇本事件引用。多筆內容請以換行分隔。</p><div class="field-grid">${fields.map(([id,label],i)=>`<div class="field ${i===0?"full":""}"><label for="${id}">${label}</label><textarea id="${id}" data-backstory="${id}">${esc(state.backstory[id])}</textarea></div>`).join("")}</div>`;
   content.querySelectorAll("[data-backstory]").forEach((area)=>area.addEventListener("input",()=>{state.backstory[area.dataset.backstory]=area.value;saveDraft();}));
 }
 
 function renderReview() {
-  content.innerHTML = `<h2>完成確認</h2><p class="lead">確認後會產生可存檔、可交給劇本使用的 Investigator Sheet。</p><div class="review-card">${state.result ? `<h3>${esc(state.result.name)}</h3><p>${esc(state.result.sheet.occupation.name)} · ${esc(state.result.ruleset_id)} / ${esc(state.result.ruleset_version)}</p><pre>${esc(JSON.stringify(state.result, null, 2))}</pre><button id="download-json" class="secondary-button" type="button">下載角色卡 JSON</button>` : "<p>尚未產生角色卡。</p>"}</div>`;
+  content.innerHTML = `<h2>完成確認</h2><p class="lead">確認後會產生可存檔、可交給劇本使用的調查員角色卡。</p><div class="review-card">${state.result ? `<h3>${esc(state.result.name)}</h3><p>${esc(occupationLabel(state.occupationId))} · 克蘇魯的呼喚第七版</p><button id="download-json" class="secondary-button" type="button">下載角色卡檔案</button>` : "<p>尚未產生角色卡。</p>"}</div>`;
   document.querySelector("#download-json")?.addEventListener("click", downloadResult);
 }
 
@@ -169,20 +188,20 @@ function validateCurrentStep() {
   if (state.step===1 && !state.occupationId) throw new Error("請選擇一個職業");
   if (state.step===2) {
     if (coreNames.some((name)=>!Number.isInteger(Number(state.characteristics[name])))) throw new Error("請完成八項能力值");
-    if (state.mode==="manual" && state.luckDice.some((die)=>Number(die)<1||Number(die)>6)) throw new Error("請輸入三顆 Luck d6 的骰面");
+    if (state.mode==="manual" && state.luckDice.some((die)=>Number(die)<1||Number(die)>6)) throw new Error("請輸入三顆六面骰的骰面");
     if (state.mode==="system") {
       const actual=coreNames.map((name)=>Number(state.characteristics[name])).sort((a,b)=>a-b); const expected=[...QUICKSTART_CHARACTERISTIC_VALUES].sort((a,b)=>a-b);
       if (actual.some((v,i)=>v!==expected[i])) throw new Error("快速配置的八個數值必須各使用一次");
-      if (!state.characteristics.Luck) throw new Error("請先擲 Luck");
+      if (!state.characteristics.Luck) throw new Error("請先擲幸運");
     }
   }
   if (state.step===3) state.result=buildResult();
 }
-function downloadResult() { const blob=new Blob([JSON.stringify(state.result,null,2)],{type:"application/json"}); const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`${state.result.name||"investigator"}.json`;a.click();URL.revokeObjectURL(a.href); }
+function downloadResult() { const blob=new Blob([JSON.stringify(state.result,null,2)],{type:"application/json"}); const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`${state.result.name||"調查員"}.json`;a.click();URL.revokeObjectURL(a.href); }
 
 function renderSheet() {
-  const stats = [...coreNames,"Luck"].filter((name)=>state.characteristics[name]).map((name)=>`<div class="stat"><small>${name}</small><strong>${state.characteristics[name]}</strong></div>`).join("");
-  document.querySelector("#live-sheet").innerHTML=`<h3>即時摘要</h3><div class="sheet-block"><span>調查員</span><strong>${esc(state.profile.name||"未命名")}</strong></div><div class="sheet-block"><span>職業</span><strong>${esc(selectedOccupation()?.name||"尚未選擇")}</strong></div>${stats?`<div class="sheet-block"><span>能力值</span><div class="stat-row">${stats}</div></div>`:""}`;
+  const stats = [...coreNames,"Luck"].filter((name)=>state.characteristics[name]).map((name)=>`<div class="stat"><small>${characteristicLabels[name]}</small><strong>${state.characteristics[name]}</strong></div>`).join("");
+  document.querySelector("#live-sheet").innerHTML=`<h3>即時摘要</h3><div class="sheet-block"><span>調查員</span><strong>${esc(state.profile.name||"未命名")}</strong></div><div class="sheet-block"><span>職業</span><strong>${esc(state.occupationId ? occupationLabel(state.occupationId) : "尚未選擇")}</strong></div>${stats?`<div class="sheet-block"><span>能力值</span><div class="stat-row">${stats}</div></div>`:""}`;
 }
 function render() {
   clearError(); renderProgress(); backButton.disabled=state.step===0; nextButton.textContent=state.step===steps.length-1?"下載角色卡":"下一步";
