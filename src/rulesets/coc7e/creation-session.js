@@ -1,6 +1,6 @@
 import { createCharacter } from "../../core/characters/character.js";
 import { COC7E_RULESET } from "./constants.js";
-import { assignQuickstartCharacteristics, recordManualCharacteristics } from "./characteristics.js";
+import { assignQuickstartCharacteristics, recordManualCharacteristics, recordSystemCharacteristics } from "./characteristics.js";
 import { deriveInvestigatorStats, successLevels } from "./derived.js";
 import { COC7E_SAMPLE_OCCUPATIONS, validateOccupationSkillSelection } from "./occupations.js";
 import { materializeSkill } from "./skills.js";
@@ -40,6 +40,12 @@ export class Coc7eCreationSession {
 
   useManualRoll(characteristics, rollRecord = {}) {
     this.characteristicResult = recordManualCharacteristics(characteristics, rollRecord);
+    this.skills = null;
+    return this;
+  }
+
+  useAutomaticRoll(characteristics, rollRecord = {}) {
+    this.characteristicResult = recordSystemCharacteristics(characteristics, rollRecord);
     this.skills = null;
     return this;
   }

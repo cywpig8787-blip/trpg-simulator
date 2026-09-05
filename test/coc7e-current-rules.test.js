@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   allocateQuickstartSkills, assignQuickstartCharacteristics,
-  COC7E_SAMPLE_OCCUPATIONS, createBaseSkillList, recordManualCharacteristics
+  COC7E_SAMPLE_OCCUPATIONS, createBaseSkillList, recordManualCharacteristics,
+  recordSystemCharacteristics
 } from "../src/index.js";
 
 const assignment = { STR: 40, CON: 50, DEX: 50, INT: 50, SIZ: 60, POW: 60, APP: 70, EDU: 80 };
@@ -17,6 +18,13 @@ test("accepts player-rolled characteristic results and records their source", ()
   const result = recordManualCharacteristics({ ...assignment, Luck: 60 }, { Luck: [4, 3, 5] });
   assert.equal(result.generation.method, "manual_roll");
   assert.equal(result.characteristics.Luck, 60);
+});
+
+test("records one-click dice results as a system roll", () => {
+  const rolls = { STR: [2, 3, 3], SIZ: [3, 3], Luck: [4, 3, 5] };
+  const result = recordSystemCharacteristics({ ...assignment, Luck: 60 }, rolls);
+  assert.equal(result.generation.method, "system_roll");
+  assert.deepEqual(result.generation.rolls.STR, [2, 3, 3]);
 });
 
 test("rejects a manual Luck total that does not match the entered dice", () => {

@@ -1,6 +1,5 @@
 import {
-  Coc7eCreationSession, COC7E_SAMPLE_OCCUPATIONS, COC7E_SKILLS,
-  QUICKSTART_CHARACTERISTIC_VALUES
+  Coc7eCreationSession, COC7E_SAMPLE_OCCUPATIONS, COC7E_SKILLS
 } from "./src/index.js";
 
 const steps = ["基本資料", "選擇職業", "能力值", "技能配置", "背景故事", "完成確認"];
@@ -27,7 +26,7 @@ const skillOptions = COC7E_SKILLS.filter((skill) => !skill.creation_locked && ![
 const initial = {
   step: 0, mode: "manual", profile: { name: "", age: 25, pronouns: "", gender: "", birthplace: "", residence: "" },
   occupationId: "", characteristics: Object.fromEntries([...coreNames, "Luck"].map((name) => [name, ""])),
-  luckDice: ["", "", ""], occupationSelections: [], assignmentValues: [], personalSkills: ["", "", "", ""],
+  luckDice: ["", "", ""], rollDetails: {}, occupationSelections: [], assignmentValues: [], personalSkills: ["", "", "", ""],
   backstory: { story: "", personal_description: "", ideology_beliefs: "", significant_people: "", meaningful_locations: "", treasured_possessions: "", traits: "", injuries_scars: "", phobias: "", manias: "" },
   result: null
 };
@@ -93,12 +92,13 @@ function slotSummary(slot) {
 }
 
 function renderAbilities() {
-  content.innerHTML = `<h2>能力值</h2><p class="lead">預設讓玩家自己擲骰並輸入結果；也可以使用系統提供的快速創角配置。</p>
-    <div class="segmented" role="group" aria-label="能力值產生方式"><button type="button" data-mode="manual" class="${state.mode === "manual" ? "active" : ""}">自己擲骰</button><button type="button" data-mode="system" class="${state.mode === "system" ? "active" : ""}">快速配置</button></div>
+  content.innerHTML = `<h2>能力值</h2><p class="lead">可以自己擲骰後輸入，也可以讓系統一次擲出九項能力值。</p>
+    <div class="segmented" role="group" aria-label="能力值產生方式"><button type="button" data-mode="manual" class="${state.mode === "manual" ? "active" : ""}">自己擲骰</button><button type="button" data-mode="system" class="${state.mode === "system" ? "active" : ""}">快速擲骰</button></div>
+    ${state.mode === "system" ? `<button id="roll-all" class="primary-button roll-all-button" type="button">${Object.keys(state.rollDetails ?? {}).length ? "全部重擲" : "一鍵擲骰"}</button>` : ""}
     <div class="ability-grid">${coreNames.map((name, index) => abilityField(name, index)).join("")}${luckField()}</div>`;
   content.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
     state.mode = button.dataset.mode;
-    if (state.mode === "system") coreNames.forEach((name, index) => { state.characteristics[name] = QUICKSTART_CHARACTERISTIC_VALUES[index]; });
+    if (state.mode === "system") { state.characteristics = Object.fromEntries([...coreNames, "Luck"].map((name) => [name, ""])); state.rollDetails = {}; state.luckDice = ["", "", ""]; }
     saveDraft(); render();
   }));
   content.querySelectorAll("[data-characteristic]").forEach((input) => input.addEventListener("change", () => { state.characteristics[input.dataset.characteristic] = Number(input.value); saveDraft(); renderSheet(); }));
@@ -107,14 +107,34 @@ function renderAbilities() {
     const dice = state.luckDice.map(Number); if (dice.every((die) => die >= 1 && die <= 6)) state.characteristics.Luck = dice.reduce((a,b) => a+b, 0) * 5;
     saveDraft(); render();
   }));
-  document.querySelector("#roll-luck")?.addEventListener("click", () => { state.luckDice = Array.from({length:3}, () => Math.floor(Math.random()*6)+1); state.characteristics.Luck = state.luckDice.reduce((a,b)=>a+b,0)*5; saveDraft(); render(); });
+  document.querySelector("#roll-all")?.addEventListener("click", rollAllCharacteristics);
+}
+function rollDice(count) { return Array.from({ length: count }, () => Math.floor(Math.random() * 6) + 1); }
+function rollAllCharacteristics() {
+  const details = {};
+  for (const name of coreNames) {
+    const dice = rollDice(["SIZ", "INT", "EDU"].includes(name) ? 2 : 3);
+    const bonus = ["SIZ", "INT", "EDU"].includes(name) ? 6 : 0;
+    details[name] = { dice, bonus };
+    state.characteristics[name] = (dice.reduce((sum, die) => sum + die, 0) + bonus) * 5;
+  }
+  state.luckDice = rollDice(3);
+  state.characteristics.Luck = state.luckDice.reduce((sum, die) => sum + die, 0) * 5;
+  details.Luck = { dice: [...state.luckDice], bonus: 0 };
+  state.rollDetails = details;
+  saveDraft(); render();
+}
+function rollText(name) {
+  const detail = state.rollDetails?.[name];
+  if (!detail) return "尚未擲骰";
+  return `骰面：${detail.dice.join("＋")}${detail.bonus ? `＋${detail.bonus}` : ""}，再乘五`;
 }
 function abilityField(name, index) {
-  if (state.mode === "system") return `<div class="ability-card"><label>${characteristicLabels[name]}<small>配置</small></label><select data-characteristic="${name}">${QUICKSTART_CHARACTERISTIC_VALUES.map((v) => `<option value="${v}" ${Number(state.characteristics[name]) === v ? "selected" : ""}>${v}</option>`).join("")}</select></div>`;
+  if (state.mode === "system") return `<div class="ability-card"><label>${characteristicLabels[name]}<small>${rollText(name)}</small></label><strong class="rolled-value">${state.characteristics[name] || "—"}</strong></div>`;
   return `<div class="ability-card"><label>${characteristicLabels[name]}<small>最終值</small></label><input data-characteristic="${name}" type="number" min="1" max="100" step="1" value="${esc(state.characteristics[name])}" inputmode="numeric"></div>`;
 }
 function luckField() {
-  if (state.mode === "system") return `<div class="ability-card"><label>幸運 <small>三顆六面骰總和 × 5</small></label><button id="roll-luck" class="secondary-button" type="button">${state.characteristics.Luck ? `重骰（${state.characteristics.Luck}）` : "擲幸運"}</button></div>`;
+  if (state.mode === "system") return `<div class="ability-card"><label>幸運 <small>${rollText("Luck")}</small></label><strong class="rolled-value">${state.characteristics.Luck || "—"}</strong></div>`;
   return `<div class="ability-card"><label>幸運 <small>輸入三顆六面骰</small></label><div class="stat-row">${state.luckDice.map((v,i)=>`<input aria-label="幸運骰子 ${i+1}" data-luck-die="${i}" type="number" min="1" max="6" value="${esc(v)}" inputmode="numeric">`).join("")}</div><strong>${state.characteristics.Luck || "—"}</strong></div>`;
 }
 
@@ -173,14 +193,10 @@ function buildResult() {
   const assignments = Object.fromEntries([...ids,"credit_rating"].map((id,i)=>[id,Number(values[i])]));
   const session = new Coc7eCreationSession(crypto.randomUUID()).setProfile(state.profile).chooseOccupation(state.occupationId);
   if (state.mode === "manual") session.useManualRoll(Object.fromEntries(Object.entries(state.characteristics).map(([k,v])=>[k,Number(v)])), { Luck: state.luckDice.map(Number) });
-  else {
-    let dieIndex = 0;
-    const dice = state.luckDice.map(Number);
-    session.useSystemRoll(
-      Object.fromEntries(coreNames.map((name)=>[name,Number(state.characteristics[name])])),
-      () => (dice[dieIndex++] - 0.5) / 6
-    );
-  }
+  else session.useAutomaticRoll(
+    Object.fromEntries([...coreNames, "Luck"].map((name)=>[name,Number(state.characteristics[name])])),
+    Object.fromEntries(Object.entries(state.rollDetails).map(([name, detail]) => [name, detail.dice]))
+  );
   return session.allocateSkills(ids, assignments, state.personalSkills).setBackstory(normalizeBackstory()).finalize();
 }
 function validateCurrentStep() {
@@ -190,9 +206,7 @@ function validateCurrentStep() {
     if (coreNames.some((name)=>!Number.isInteger(Number(state.characteristics[name])))) throw new Error("請完成八項能力值");
     if (state.mode==="manual" && state.luckDice.some((die)=>Number(die)<1||Number(die)>6)) throw new Error("請輸入三顆六面骰的骰面");
     if (state.mode==="system") {
-      const actual=coreNames.map((name)=>Number(state.characteristics[name])).sort((a,b)=>a-b); const expected=[...QUICKSTART_CHARACTERISTIC_VALUES].sort((a,b)=>a-b);
-      if (actual.some((v,i)=>v!==expected[i])) throw new Error("快速配置的八個數值必須各使用一次");
-      if (!state.characteristics.Luck) throw new Error("請先擲幸運");
+      if ([...coreNames,"Luck"].some((name)=>!Number.isInteger(Number(state.characteristics[name])))) throw new Error("請先按下一鍵擲骰");
     }
   }
   if (state.step===3) state.result=buildResult();

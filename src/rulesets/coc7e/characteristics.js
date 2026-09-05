@@ -53,3 +53,11 @@ export function recordManualCharacteristics(characteristics, rollRecord = {}) {
     generation: { method: "manual_roll", rolls: { ...rollRecord } }
   };
 }
+
+export function recordSystemCharacteristics(characteristics, rollRecord = {}) {
+  const recorded = recordManualCharacteristics(characteristics, { Luck: rollRecord.Luck });
+  return {
+    ...recorded,
+    generation: { method: "system_roll", rolls: { ...rollRecord } }
+  };
+}
