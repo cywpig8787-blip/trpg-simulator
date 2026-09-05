@@ -27,3 +27,9 @@
 ```bash
 npm test
 ```
+
+## 讓 ChatGPT 協助修改
+
+把這個 GitHub 專案網址交給已連接 GitHub 的 ChatGPT，直接說明想修改的畫面或規則即可。專案內的 `AGENTS.md` 已記錄檔案位置、測試與建置方式，讓不同對話中的老師也能接手。
+
+網頁原始檔放在 `ui/web/`，規則核心放在 `src/`。修改完成並提交到 `main` 後，GitHub Actions 會自動執行測試、重建 `dist/`，並發布到 GitHub Pages。

@@ -1,0 +1,50 @@
+name: 自動發布網頁
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 讀取專案
+        uses: actions/checkout@v4
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 執行測試
+        run: npm test
+
+      - name: 建置網頁
+        run: npm run build
+
+      - name: 設定 GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: 上傳網頁成品
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: 發布網頁
+        id: deployment
+        uses: actions/deploy-pages@v4
